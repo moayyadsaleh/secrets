@@ -1,14 +1,26 @@
 import 'dotenv/config';
-
 import express from 'express';
 import mongoose from 'mongoose';
-import bcrypt from 'bcrypt';
-const saltRounds = 10;
+import session from "express-session";
+import passport from "passport";
+import passportLocalMongoose from "passport-local-mongoose";
+import { Strategy as LocalStrategy } from "passport-local";
 
 const app = express();
 app.use(express.static("Public"));
 app.set('view engine', "ejs");
 app.use(express.urlencoded({ extended: true }));
+
+//Set up Session
+app.use(session({
+    secret: "I don't like food.",
+    resave: false,
+    saveUninitialized: false,
+  }));
+
+//Always Place it after the session.
+app.use(passport.initialize());  //passport should be initialized before using
+app.use(passport.session());   // so once the session is set up, tell the app to use passport to deal with the session
 
 //Establish connection with MongoDb 
 const uri = 'mongodb://127.0.0.1:27017/userDB';
@@ -42,10 +54,19 @@ const userSchema = new mongoose.Schema({
     password: String 
 });
 
-
+// plugin mongoose local to the schema
+userSchema.plugin(passportLocalMongoose);
 
 //Define DB Model
 const User= new mongoose.model("User", userSchema);
+
+// use static authenticate method of model in LocalStrategy
+passport.use(new LocalStrategy(User.authenticate()));
+
+// use static serialize and deserialize of model for passport session support
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
+
 
 //Define get requests for different pages
 app.get("/", (req, res)=>{
@@ -64,53 +85,11 @@ app.get("/register", (req, res)=>{
 
 //Send Post request to capture user registration. Use MD5 to hash password.
 app.post('/register', async (req, res) => {
-    const email = req.body.username;
-    const password = req.body.password;
-    
-    try {
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
-        
-        const newUser = new User({
-            email: email,
-            password: hashedPassword
-        });
 
-        await newUser.save();
-        console.log('User registered successfully');
-        res.render('secrets'); // Make sure you have a 'secrets' view file
-    } catch (err) {
-        console.error('Error registering user:', err);
-        res.status(500).send('Error registering user');
-    }
 });
 // Send Post request to handle user login
 app.post('/login', async (req, res) => {
-    const email = req.body.username;
-    const password = req.body.password;
 
-    try {
-        // Find a user with the provided email
-        const user = await User.findOne({ email: email });
-
-        if (user) {
-            // Compare hashed password with provided password using bcrypt.compare
-            const passwordMatch = await bcrypt.compare(password, user.password);
-
-            if (passwordMatch) {
-                console.log('User logged in successfully');
-                res.render('secrets'); // Render 'secrets' view after successful login
-            } else {
-                console.log('Invalid email or password');
-                res.status(401).send('Invalid email or password');
-            }
-        } else {
-            console.log('User not found');
-            res.status(401).send('User not found');
-        }
-    } catch (err) {
-        console.error('Error logging in user:', err);
-        res.status(500).send('Error logging in user');
-    }
 });
 
 app.listen(3000, () => {
