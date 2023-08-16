@@ -2,6 +2,9 @@ import 'dotenv/config';
 import md5 from 'md5';
 import express from 'express';
 import mongoose from 'mongoose';
+import bcrypt from 'bcrypt';
+const saltRounds = 10;
+
 const app = express();
 app.use(express.static("Public"));
 app.set('view engine', "ejs");
@@ -61,39 +64,48 @@ app.get("/register", (req, res)=>{
 
 //Send Post request to capture user registration. Use MD5 to hash password.
 app.post('/register', async (req, res) => {
-    const email = (req.body.username);
-    const password = md5(req.body.password); // Use the correct field name
+    const email = req.body.username;
+    const password = req.body.password;
     
     try {
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+        
         const newUser = new User({
             email: email,
-            password: password
+            password: hashedPassword
         });
 
         await newUser.save();
         console.log('User registered successfully');
-        res.render('secrets');
+        res.render('secrets'); // Make sure you have a 'secrets' view file
     } catch (err) {
         console.error('Error registering user:', err);
         res.status(500).send('Error registering user');
     }
 });
-
 // Send Post request to handle user login
 app.post('/login', async (req, res) => {
     const email = req.body.username;
-    const password = md5(req.body.password);
+    const password = req.body.password;
 
     try {
         // Find a user with the provided email
         const user = await User.findOne({ email: email });
 
-        if (user && user.password === password) {
-            console.log('User logged in successfully');
-            res.render('secrets'); // Render 'secrets' view after successful login
+        if (user) {
+            // Compare hashed password with provided password using bcrypt.compare
+            const passwordMatch = await bcrypt.compare(password, user.password);
+
+            if (passwordMatch) {
+                console.log('User logged in successfully');
+                res.render('secrets'); // Render 'secrets' view after successful login
+            } else {
+                console.log('Invalid email or password');
+                res.status(401).send('Invalid email or password');
+            }
         } else {
-            console.log('Invalid email or password');
-            res.status(401).send('Invalid email or password');
+            console.log('User not found');
+            res.status(401).send('User not found');
         }
     } catch (err) {
         console.error('Error logging in user:', err);
