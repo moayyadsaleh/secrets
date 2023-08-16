@@ -85,12 +85,12 @@ app.post('/register', async (req, res) => {
 app.post('/login', async (req, res) => {
     const email = req.body.username;
     const password = req.body.password;
-  
+
     try {
-        // Find a user with the provided email and password
-        const user = await User.findOne({ email: email, password: password });
-        
-        if (user) {
+        // Find a user with the provided email
+        const user = await User.findOne({ email: email });
+
+        if (user && user.password === password) {
             console.log('User logged in successfully');
             res.render('secrets'); // Render 'secrets' view after successful login
         } else {
