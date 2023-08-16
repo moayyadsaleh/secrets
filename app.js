@@ -33,15 +33,14 @@ db.on('disconnected', () => {
 
 
 
-//Define DB schema
+// Define DB schema
 const userSchema = {
-email: String,
-Password: String
-};
-
+    email: String,
+    password: String // Use lowercase "password"
+  };
 
 //Define DB Model
-const Use= new mongoose.model("User", userSchema);
+const User= new mongoose.model("User", userSchema);
 
 //Define get requests for different pages
 app.get("/", (req, res)=>{
@@ -59,29 +58,51 @@ app.get("/register", (req, res)=>{
 
 
 //Send Post request to capture user registration
-app.post('/register', (req, res) => {
-    const email = req.body.username; 
-    const password = req.body.passWord; 
+app.post('/register', async (req, res) => {
+    const email = req.body.username;
+    const password = req.body.passWord;
   
-    // Create a new user using the User model
-    const newUser = new User({
-      email: email, 
-      password: password 
-    });
+    try {
+      const newUser = new User({
+        email: email,
+        password: password
+      });
   
-    // Save the user to the database
-    newUser.save((err) => {
-      if (err) {
-        console.error('Error registering user:', err);
-        res.status(500).send('Error registering user');
+      await newUser.save();
+      console.log('User registered successfully');
+      res.render('secrets'); // Render 'secrets' view after successful registration
+    } catch (err) {
+      console.error('Error registering user:', err);
+      res.status(500).send('Error registering user');
+    }
+  });
+
+ //Send post request to log in. Check user input against user name and password
+ app.post('/login', async (req, res) => {
+    const email = req.body.username;
+    const password = req.body.passWord;
+  
+    try {
+      const user = await User.findOne({ email: email }); // Find user by email
+  
+      if (user) {
+        if (user.password === password) {
+          console.log("Email and password are matching");
+          res.render('secrets');
+        } else {
+          console.log("Incorrect password");
+          res.send("Error logging in. Incorrect password");
+        }
       } else {
-        console.log('User registered successfully');
-        res.render('secrets'); // Render 'secrets' view after successful registration
+        console.log("User not found");
+        res.send("Error logging in. User not found");
       }
-    });
-});
-      
-      
+    } catch (err) {
+      console.error('Error during login:', err);
+      res.status(500).send('Error during login');
+    }
+  });
+
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
 });
