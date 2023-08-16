@@ -1,12 +1,11 @@
+import 'dotenv/config';
 import express from 'express';
 import mongoose from 'mongoose';
 import encrypt from 'mongoose-encryption'; // Import mongoose-encryption library
 const app = express();
-
 app.use(express.static("Public"));
 app.set('view engine', "ejs");
 app.use(express.urlencoded({ extended: true }));
-
 
 //Establish connection with MongoDb 
 const uri = 'mongodb://127.0.0.1:27017/userDB';
@@ -34,7 +33,6 @@ db.on('disconnected', () => {
 
 
 
-// Define DB schema
 // Define user schema
 const userSchema = new mongoose.Schema({
     email: String,
@@ -42,9 +40,8 @@ const userSchema = new mongoose.Schema({
 });
 
 //Define a secret to encrypt DB
-const secret ="TryThisSecret.";
 
-userSchema.plugin(encrypt, {secret: secret, encryptedFields:['password']});
+userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields:['password']});
 
 //Define DB Model
 const User= new mongoose.model("User", userSchema);
