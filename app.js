@@ -1,7 +1,7 @@
 import 'dotenv/config';
+import md5 from 'md5';
 import express from 'express';
 import mongoose from 'mongoose';
-import encrypt from 'mongoose-encryption'; // Import mongoose-encryption library
 const app = express();
 app.use(express.static("Public"));
 app.set('view engine', "ejs");
@@ -39,9 +39,7 @@ const userSchema = new mongoose.Schema({
     password: String 
 });
 
-//Define a secret to encrypt DB
 
-userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields:['password']});
 
 //Define DB Model
 const User= new mongoose.model("User", userSchema);
@@ -61,10 +59,10 @@ app.get("/register", (req, res)=>{
 });
 
 
-//Send Post request to capture user registration
+//Send Post request to capture user registration. Use MD5 to hash password.
 app.post('/register', async (req, res) => {
-    const email = req.body.username;
-    const password = req.body.password; // Use the correct field name
+    const email = (req.body.username);
+    const password = md5(req.body.password); // Use the correct field name
     
     try {
         const newUser = new User({
@@ -84,7 +82,7 @@ app.post('/register', async (req, res) => {
 // Send Post request to handle user login
 app.post('/login', async (req, res) => {
     const email = req.body.username;
-    const password = req.body.password;
+    const password = md5(req.body.password);
 
     try {
         // Find a user with the provided email
