@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import md5 from 'md5';
+
 import express from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
