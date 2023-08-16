@@ -1,5 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import encrypt from 'mongoose-encryption'; // Import mongoose-encryption library
 const app = express();
 
 app.use(express.static("Public"));
@@ -34,10 +35,16 @@ db.on('disconnected', () => {
 
 
 // Define DB schema
-const userSchema = {
+// Define user schema
+const userSchema = new mongoose.Schema({
     email: String,
-    password: String // Use lowercase "password"
-  };
+    password: String 
+});
+
+//Define a secret to encrypt DB
+const secret ="TryThisSecret.";
+
+userSchema.plugin(encrypt, {secret: secret, encryptedFields:['password']});
 
 //Define DB Model
 const User= new mongoose.model("User", userSchema);
