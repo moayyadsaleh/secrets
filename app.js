@@ -23,7 +23,7 @@ app.use(passport.initialize());  //passport should be initialized before using
 app.use(passport.session());   // so once the session is set up, tell the app to use passport to deal with the session
 
 //Establish connection with MongoDb 
-const uri = 'mongodb://127.0.0.1:27017/userDB';
+const uri = process.env.DATABASE_URL;
 mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
     .then(() => {
         console.log('Connected to MongoDB');
@@ -61,12 +61,11 @@ userSchema.plugin(passportLocalMongoose);
 const User= new mongoose.model("User", userSchema);
 
 // use static authenticate method of model in LocalStrategy
-passport.use(new LocalStrategy(User.authenticate()));
+passport.use(User.createStrategy());
 
 // use static serialize and deserialize of model for passport session support
 passport.serializeUser(User.serializeUser());
 passport.deserializeUser(User.deserializeUser());
-
 
 //Define get requests for different pages
 app.get("/", (req, res)=>{
@@ -83,15 +82,57 @@ app.get("/register", (req, res)=>{
 });
 
 
-//Send Post request to capture user registration. Use MD5 to hash password.
-app.post('/register', async (req, res) => {
+app.get("/secrets", (req, res) => {
+    if (req.isAuthenticated()) {
+      res.render("secrets");
+    } else {
+      res.redirect("/login");
+    }
+  });
+  
+  app.get('/logout', function(req, res, next){
+    req.logout(function(err) {
+      if (err) { return next(err); }
+      res.redirect('/');
+    });
+  });
 
-});
+
+    app.post("/register", (req, res) => {
+        const newUser = new User({ username: req.body.username });
+    
+        User.register(newUser, req.body.password, function(err, user) {
+            if (err) {
+                console.log(err);
+                return res.redirect("/register");
+            }
+    
+            // If registration is successful, you might want to log the user in automatically
+            passport.authenticate("local")(req, res, function() {
+                res.redirect("/secrets"); // Redirect to the home page or a dashboard
+            });
+        });
+    });
+
 // Send Post request to handle user login
-app.post('/login', async (req, res) => {
-
+app.post('/login', (req, res, next) => {
+    const user = new User({
+        username: req.body.username,
+        password: req.body.password
+    });
+    
+    req.login(user, function(err) {
+        if (err) {
+            console.log(err);
+            // Handle error appropriately, e.g., redirect to an error page
+        } else {
+            passport.authenticate("local")(req, res, function() {
+                // Authentication successful, redirect to a secure page
+                res.redirect("/secrets");
+            });
+        }
+    });
 });
-
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
 });
