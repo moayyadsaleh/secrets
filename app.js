@@ -1,28 +1,18 @@
-import 'dotenv/config';
+import dotenv from 'dotenv'; // Import dotenv
+dotenv.config(); // Load environment variables
+
 import express from 'express';
 import mongoose from 'mongoose';
-import session from "express-session";
-import passport from "passport";
-import passportLocalMongoose from "passport-local-mongoose";
-import { Strategy as LocalStrategy } from "passport-local";
+import session from 'express-session';
+import passport from 'passport';
+import passportLocalMongoose from 'passport-local-mongoose';
 
 const app = express();
 app.use(express.static("Public"));
 app.set('view engine', "ejs");
 app.use(express.urlencoded({ extended: true }));
 
-//Set up Session
-app.use(session({
-    secret: "I don't like food.",
-    resave: false,
-    saveUninitialized: false,
-  }));
-
-//Always Place it after the session.
-app.use(passport.initialize());  //passport should be initialized before using
-app.use(passport.session());   // so once the session is set up, tell the app to use passport to deal with the session
-
-//Establish connection with MongoDb 
+// Establish connection with MongoDB
 const uri = process.env.DATABASE_URL;
 mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
     .then(() => {
@@ -32,7 +22,7 @@ mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
         console.error('Error connecting to MongoDB:', error);
     });
 
-    const db = mongoose.connection;
+const db = mongoose.connection;
 
 db.on('connected', () => {
     console.log('Mongoose connected to ' + uri);
@@ -46,93 +36,79 @@ db.on('disconnected', () => {
     console.log('Mongoose disconnected');
 });
 
-
-
-// Define user schema
+// Define user schema and create User model
 const userSchema = new mongoose.Schema({
+    username: String, // Add username field
     email: String,
     password: String 
 });
 
-// plugin mongoose local to the schema
 userSchema.plugin(passportLocalMongoose);
+const User = mongoose.model("User", userSchema);
 
-//Define DB Model
-const User= new mongoose.model("User", userSchema);
+// Set up session, then initialize and use passport
+app.set('trust proxy', 1);
+app.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } // Change to false for local development
+}));
 
-// use static authenticate method of model in LocalStrategy
+app.use(passport.initialize());
+app.use(passport.session());
+
 passport.use(User.createStrategy());
-
-// use static serialize and deserialize of model for passport session support
 passport.serializeUser(User.serializeUser());
 passport.deserializeUser(User.deserializeUser());
 
-//Define get requests for different pages
-app.get("/", (req, res)=>{
+// Define get requests for different pages
+app.get("/", (req, res) => {
     res.render("home");
 });
 
-
-app.get("/login", (req, res)=>{
+app.get("/login", (req, res) => {
     res.render("login");
 });
 
-app.get("/register", (req, res)=>{
+app.get("/register", (req, res) => {
     res.render("register");
 });
 
+app.get('/logout', (req, res) => {
+    req.logout(() => {
+        req.session.destroy(() => {
+            res.redirect("/login"); // Redirect after logout
+        });
+    });
+});
+
+//register User
+app.post("/register", (req, res) => {
+    User.register({ email: req.body.email }, req.body.password, function (err, user) {
+        if (err) {
+            console.log(err);
+            return res.redirect("/register");
+        }
+        passport.authenticate("local")(req, res, function () {
+            res.redirect("/secrets");
+        });
+    });
+});
 
 app.get("/secrets", (req, res) => {
     if (req.isAuthenticated()) {
-      res.render("secrets");
+        res.render("secrets");
     } else {
-      res.redirect("/login");
+        res.redirect("/login");
     }
-  });
-  
-  app.get('/logout', function(req, res, next){
-    req.logout(function(err) {
-      if (err) { return next(err); }
-      res.redirect('/');
-    });
-  });
-
-
-    app.post("/register", (req, res) => {
-        const newUser = new User({ username: req.body.username });
-    
-        User.register(newUser, req.body.password, function(err, user) {
-            if (err) {
-                console.log(err);
-                return res.redirect("/register");
-            }
-    
-            // If registration is successful, you might want to log the user in automatically
-            passport.authenticate("local")(req, res, function() {
-                res.redirect("/secrets"); // Redirect to the home page or a dashboard
-            });
-        });
-    });
-
-// Send Post request to handle user login
-app.post('/login', (req, res, next) => {
-    const user = new User({
-        username: req.body.username,
-        password: req.body.password
-    });
-    
-    req.login(user, function(err) {
-        if (err) {
-            console.log(err);
-            // Handle error appropriately, e.g., redirect to an error page
-        } else {
-            passport.authenticate("local")(req, res, function() {
-                // Authentication successful, redirect to a secure page
-                res.redirect("/secrets");
-            });
-        }
-    });
 });
+
+// Implement the /login route to handle user login
+app.post('/login', passport.authenticate("local", {
+    successRedirect: '/secrets', // Redirect to secrets page upon successful login
+    failureRedirect: '/login' // Redirect to login page upon failed login
+}));
 app.listen(3000, () => {
-  console.log("Server is running on port 3000");
+    console.log("Server is running on port 3000");
 });
