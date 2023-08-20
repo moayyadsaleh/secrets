@@ -36,14 +36,15 @@ db.on('disconnected', () => {
     console.log('Mongoose disconnected');
 });
 
-// Define user schema and create User model
 const userSchema = new mongoose.Schema({
-    email: String,
+    email: String, // Use email as the primary field
     password: String,
     googleId: String,
+    secret: String
 });
 
-userSchema.plugin(passportLocalMongoose);
+userSchema.plugin(passportLocalMongoose, { usernameField: 'email' }); // Specify 'email' as the username field
+
 userSchema.statics.findOrCreate = async function(condition) {
     let user = await this.findOne(condition);
 
@@ -135,24 +136,63 @@ app.get('/logout', (req, res) => {
 
 // Register User
 app.post("/register", (req, res) => {
-    User.register({ email: req.body.email }, req.body.password, function (err, user) {
+    const newUser = new User({ email: req.body.email }); // Use email as the primary field
+    User.register(newUser, req.body.password, function (err, user) {
         if (err) {
             console.log(err);
             return res.redirect("/register");
         }
+        // Automatically authenticate the user after registration
         passport.authenticate("local")(req, res, function () {
             res.redirect("/secrets");
         });
     });
 });
-
 //secure the secrets page
 app.get("/secrets", (req, res) => {
     if (req.isAuthenticated()) {
-        res.render("secrets");
+        // Assuming that req.user.secret contains the user's secret
+        res.render("secrets", { user: req.user });
     } else {
         res.redirect("/login");
     }
+});
+
+
+
+app.get("/submit", (req,res) =>{
+    if (req.isAuthenticated()) {
+        res.render("submit");
+    } else {
+        res.redirect("/login");
+    }
+});
+
+app.post("/submit", (req, res) => {
+    const submittedSecret = req.body.secret;
+    User.findById(req.user.id)
+        .exec()
+        .then(foundUser => {
+            if (foundUser) {
+                foundUser.secret = submittedSecret;
+                return foundUser.save();
+            } else {
+                console.log("User not found");
+                return null;
+            }
+        })
+        .then(savedUser => {
+            if (savedUser) {
+                res.redirect("/secrets");
+            } else {
+                // Handle user not found case here
+                res.redirect("/login"); // or any other appropriate action
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            res.redirect("/login"); // Handle the error appropriately
+        });
 });
 
 // Implement the /login route to handle user login
